@@ -128,8 +128,8 @@ const ItineraryPlanner = () => {
                     <span className="text-primary">GH₵{totalCost}</span>
                   </div>
                 </div>
-                <Button className="mt-6 w-full" size="lg">
-                  <DollarSign className="mr-1 h-4 w-4" /> Proceed to Payment
+                <Button className="mt-6 w-full" size="lg" asChild>
+                  <Link to="/checkout"><DollarSign className="mr-1 h-4 w-4" /> Proceed to Payment</Link>
                 </Button>
               </div>
             </div>

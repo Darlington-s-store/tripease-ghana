@@ -177,7 +177,9 @@ const HotelDetails = () => {
                 </div>
               </div>
 
-              <Button className="w-full" size="lg">Book Now</Button>
+              <Button className="w-full" size="lg" asChild>
+                <Link to="/checkout">Book Now</Link>
+              </Button>
 
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Badge variant="outline" className="text-xs">MTN MoMo</Badge>
