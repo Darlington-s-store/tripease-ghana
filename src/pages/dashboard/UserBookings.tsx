@@ -1,15 +1,10 @@
-import { Calendar, Hotel, MapPin, CreditCard, Star, Badge as BadgeIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Calendar, Hotel, MapPin, CreditCard, Star, Badge as BadgeIcon, Loader } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-
-const bookings = [
-  { id: "BK001", type: "Hotel", name: "Labadi Beach Hotel", date: "Mar 15-18, 2026", status: "confirmed", amount: 1350, guests: 2 },
-  { id: "BK002", type: "Guide", name: "Kwame Mensah - Cape Coast Tour", date: "Mar 16, 2026", status: "pending", amount: 200, guests: 2 },
-  { id: "BK003", type: "Transport", name: "VIP Bus: Accra → Kumasi", date: "Mar 20, 2026", status: "confirmed", amount: 120, guests: 1 },
-  { id: "BK004", type: "Hotel", name: "Golden Tulip Kumasi", date: "Mar 20-22, 2026", status: "completed", amount: 400, guests: 2 },
-  { id: "BK005", type: "Attraction", name: "Mole National Park Safari", date: "Mar 25, 2026", status: "cancelled", amount: 150, guests: 3 },
-];
+import { bookingsService, Booking } from "@/services/bookings";
+import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
   confirmed: "bg-success/10 text-success",
@@ -18,41 +13,95 @@ const statusColors: Record<string, string> = {
   completed: "bg-info/10 text-info",
 };
 
-const UserBookings = () => (
-  <DashboardLayout role="user">
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl font-bold">My Bookings</h2>
-        <Badge variant="secondary">{bookings.length} bookings</Badge>
-      </div>
+const UserBookings = () => {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-      <div className="space-y-4">
-        {bookings.map((b) => (
-          <div key={b.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1">
-              <div className="mb-1 flex items-center gap-2">
-                <Badge variant="secondary">{b.type}</Badge>
-                <span className="text-xs text-muted-foreground">{b.id}</span>
-              </div>
-              <p className="font-semibold">{b.name}</p>
-              <p className="text-sm text-muted-foreground">{b.date} • {b.guests} guest(s)</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${statusColors[b.status]}`}>
-                {b.status}
-              </span>
-              <span className="text-lg font-bold text-primary">GH₵{b.amount}</span>
-              <div className="flex gap-1">
-                {b.status === "confirmed" && <Button variant="outline" size="sm">Cancel</Button>}
-                {b.status === "completed" && <Button variant="outline" size="sm">Review</Button>}
-                <Button variant="ghost" size="sm">Details</Button>
-              </div>
-            </div>
+  useEffect(() => {
+    loadBookings();
+  }, []);
+
+  const loadBookings = async () => {
+    setIsLoading(true);
+    try {
+      const data = await bookingsService.getUserBookings();
+      setBookings(data);
+    } catch (error: any) {
+      toast.error("Failed to load bookings");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await bookingsService.cancelBooking(bookingId);
+      toast.success("Booking cancelled successfully");
+      loadBookings();
+    } catch (error: any) {
+      toast.error("Failed to cancel booking");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout role="user">
+        <div className="flex items-center justify-center py-20">
+          <Loader className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout role="user">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-2xl font-bold">My Bookings</h2>
+          <Badge variant="secondary">{bookings.length} bookings</Badge>
+        </div>
+
+        {bookings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-12">
+            <Calendar className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-lg font-semibold">No bookings yet</p>
+            <p className="text-sm text-muted-foreground">Start planning your next trip</p>
           </div>
-        ))}
+        ) : (
+          <div className="space-y-4">
+            {bookings.map((b) => (
+              <div key={b.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Badge variant="secondary">{b.booking_type}</Badge>
+                    <span className="text-xs text-muted-foreground">{b.id}</span>
+                  </div>
+                  <p className="font-semibold">Booking Reference</p>
+                  <p className="text-sm text-muted-foreground">Status: {b.status} • GH₵{b.total_price}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${statusColors[b.status]}`}>
+                    {b.status}
+                  </span>
+                  <span className="text-lg font-bold text-primary">GH₵{b.total_price.toFixed(2)}</span>
+                  <div className="flex gap-1">
+                    {b.status === "confirmed" && (
+                      <Button variant="outline" size="sm" onClick={() => handleCancelBooking(b.id)}>
+                        Cancel
+                      </Button>
+                    )}
+                    {b.status === "completed" && <Button variant="outline" size="sm">Review</Button>}
+                    <Button variant="ghost" size="sm">Details</Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  </DashboardLayout>
-);
+    </DashboardLayout>
+  );
+};
 
 export default UserBookings;

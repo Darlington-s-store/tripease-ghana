@@ -1,12 +1,38 @@
-import { Link } from "react-router-dom";
-import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Mail, Lock, User, Eye, EyeOff, Loader } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Layout from "@/components/layout/Layout";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { login, isLoading } = useAuth();
   const [showPw, setShowPw] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await login(formData.email, formData.password);
+      toast.success("Logged in successfully!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Login failed");
+    }
+  };
 
   return (
     <Layout>
@@ -18,28 +44,53 @@ const Login = () => {
               <p className="text-sm text-muted-foreground">Sign in to your TripEase account</p>
             </div>
 
-            <form className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-medium">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input type="email" placeholder="you@example.com" className="pl-10" />
+                  <Input
+                    type="email"
+                    name="email"
+                    placeholder="you@example.com"
+                    className="pl-10"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input type={showPw ? "text" : "password"} placeholder="••••••••" className="pl-10 pr-10" />
-                  <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <Input
+                    type={showPw ? "text" : "password"}
+                    name="password"
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
               <div className="flex justify-end">
-                <Link to="/forgot-password" className="text-sm text-primary hover:underline">Forgot password?</Link>
+                <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                  Forgot password?
+                </Link>
               </div>
-              <Button className="w-full" size="lg">Sign In</Button>
+              <Button className="w-full" size="lg" disabled={isLoading}>
+                {isLoading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                Sign In
+              </Button>
             </form>
 
             <div className="my-6 flex items-center gap-3">

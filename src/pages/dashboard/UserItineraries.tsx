@@ -1,14 +1,11 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Calendar, DollarSign, MapPin, Plus, Share2, Trash2 } from "lucide-react";
+import { BookOpen, Calendar, DollarSign, MapPin, Plus, Share2, Trash2, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-
-const itineraries = [
-  { id: 1, name: "Cape Coast Weekend", days: 3, items: 8, cost: 1850, created: "Mar 1, 2026", status: "active" },
-  { id: 2, name: "Northern Ghana Safari", days: 5, items: 12, cost: 3200, created: "Feb 20, 2026", status: "completed" },
-  { id: 3, name: "Accra City Break", days: 2, items: 5, cost: 950, created: "Feb 10, 2026", status: "draft" },
-];
+import { tripsService, Trip } from "@/services/trips";
+import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
   active: "bg-success/10 text-success",
@@ -16,46 +13,123 @@ const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
 };
 
-const UserItineraries = () => (
-  <DashboardLayout role="user">
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl font-bold">My Itineraries</h2>
-        <Button className="gap-1" asChild>
-          <Link to="/itinerary"><Plus className="h-4 w-4" /> Create New</Link>
-        </Button>
-      </div>
+const UserItineraries = () => {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-      <div className="space-y-4">
-        {itineraries.map((it) => (
-          <div key={it.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
-                <BookOpen className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold">{it.name}</p>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {it.days} days</span>
-                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {it.items} items</span>
-                  <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> GH₵{it.cost.toLocaleString()}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Created: {it.created}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusColors[it.status]}`}>{it.status}</span>
-              <Button variant="ghost" size="sm"><Share2 className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="sm" className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/itinerary">View</Link>
-              </Button>
-            </div>
+  useEffect(() => {
+    loadTrips();
+  }, []);
+
+  const loadTrips = async () => {
+    setIsLoading(true);
+    try {
+      const data = await tripsService.getUserTrips();
+      setTrips(data);
+    } catch (error: any) {
+      toast.error("Failed to load itineraries");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (tripId: string) => {
+    try {
+      await tripsService.deleteTrip(tripId);
+      toast.success("Itinerary deleted successfully");
+      loadTrips();
+    } catch (error: any) {
+      toast.error("Failed to delete itinerary");
+    }
+  };
+
+  const calculateDays = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout role="user">
+        <div className="flex items-center justify-center py-20">
+          <Loader className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout role="user">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-2xl font-bold">My Itineraries</h2>
+          <Button className="gap-1" asChild>
+            <Link to="/trips/new">
+              <Plus className="h-4 w-4" /> Create New
+            </Link>
+          </Button>
+        </div>
+
+        {trips.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-12">
+            <BookOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="text-lg font-semibold">No itineraries yet</p>
+            <p className="text-sm text-muted-foreground">Create your first trip itinerary</p>
           </div>
-        ))}
+        ) : (
+          <div className="space-y-4">
+            {trips.map((trip) => (
+              <div
+                key={trip.id}
+                className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{trip.destination}</p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {calculateDays(trip.start_date, trip.end_date)} days
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {trip.destination}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" /> GH₵{trip.budget}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created: {new Date(trip.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm">
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => handleDelete(trip.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`/trips/${trip.id}`}>View</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  </DashboardLayout>
-);
+    </DashboardLayout>
+  );
+};
 
 export default UserItineraries;
