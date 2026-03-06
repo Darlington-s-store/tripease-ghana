@@ -5,26 +5,15 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
-  role VARCHAR(50) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'provider')),
-  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
-  avatar_url VARCHAR(500),
+  avatar_url TEXT,
   bio TEXT,
+  role VARCHAR(50) DEFAULT 'user',
+  status VARCHAR(50) DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Providers table (for tour guides and hotels)
-CREATE TABLE IF NOT EXISTS providers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  business_name VARCHAR(255) NOT NULL,
-  provider_type VARCHAR(50) NOT NULL CHECK (provider_type IN ('hotel', 'guide', 'activity')),
-  description TEXT,
-  verification_status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (verification_status IN ('pending', 'verified', 'rejected')),
-  rating DECIMAL(3, 2) DEFAULT 0.0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+
 
 -- Trips table
 CREATE TABLE IF NOT EXISTS trips (
