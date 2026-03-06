@@ -1,12 +1,27 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, CreditCard, Phone, Shield, CheckCircle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Layout from "@/components/layout/Layout";
+import { useAuth } from "@/context/AuthContext";
+import { bookingsService } from "@/services/bookings";
+import { toast } from "sonner";
+import { Navigate } from "react-router-dom";
 
 type PaymentMethod = "mtn" | "vodafone" | "airteltigo" | "card";
+
+interface BookingData {
+  hotelId: string;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  guests: number;
+  pricePerNight: number;
+  totalPrice: number;
+}
 
 const paymentMethods = [
   { id: "mtn" as const, name: "MTN Mobile Money", icon: "📱", color: "border-warning bg-warning/5", description: "Pay with your MTN MoMo wallet" },
@@ -16,15 +31,73 @@ const paymentMethods = [
 ];
 
 const Checkout = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  const bookingData = location.state as BookingData | undefined;
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [step, setStep] = useState<"method" | "details" | "confirm">("method");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container py-20 text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  if (!bookingData) {
+    return (
+      <Layout>
+        <div className="container max-w-4xl py-8">
+          <h1 className="mb-2 font-display text-3xl font-bold">Invalid Booking</h1>
+          <p className="mb-4 text-muted-foreground">No booking information found.</p>
+          <Button onClick={() => navigate("/hotels")}>Back to Hotels</Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  const handlePayment = async () => {
+    if (!selectedMethod) {
+      toast.error("Please select a payment method");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const booking = await bookingsService.createBooking(
+        bookingData.hotelId,
+        bookingData.checkInDate,
+        bookingData.checkOutDate,
+        bookingData.guests,
+        bookingData.totalPrice,
+        selectedMethod
+      );
+
+      toast.success("Booking completed successfully!");
+      navigate("/dashboard/bookings");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to process booking");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <Layout>
       <div className="container max-w-4xl py-8">
-        <Link to="/hotels" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
+        <button onClick={() => navigate(-1)} className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
           <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
+        </button>
 
         <h1 className="mb-2 font-display text-3xl font-bold">Checkout</h1>
         <p className="mb-8 text-muted-foreground">Complete your booking payment securely</p>
@@ -152,8 +225,8 @@ const Checkout = () => {
                   <p className="mb-6 text-sm text-muted-foreground">
                     By clicking "Pay Now", you agree to our terms of service and privacy policy. Your payment will be processed securely.
                   </p>
-                  <Button size="lg" className="w-full gap-2">
-                    <Lock className="h-4 w-4" /> Pay GH₵1,400
+                  <Button size="lg" className="w-full gap-2" onClick={handlePayment} disabled={isProcessing}>
+                    <Lock className="h-4 w-4" /> {isProcessing ? "Processing..." : `Pay GH₵${bookingData.totalPrice.toFixed(2)}`}
                   </Button>
                   <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <Shield className="h-3 w-3" />
@@ -168,19 +241,27 @@ const Checkout = () => {
           {/* Order Summary */}
           <div>
             <div className="sticky top-20 rounded-2xl border border-border bg-card p-6">
-              <h3 className="mb-4 font-display text-lg font-semibold">Order Summary</h3>
+              <h3 className="mb-4 font-display text-lg font-semibold">Booking Summary</h3>
               <div className="mb-4 space-y-3">
                 <div className="rounded-lg bg-muted p-3">
-                  <p className="font-medium">Labadi Beach Hotel</p>
-                  <p className="text-sm text-muted-foreground">Mar 15-18, 2026 • 3 nights</p>
-                  <p className="text-sm text-muted-foreground">2 guests</p>
+                  <p className="font-medium">{bookingData.hotelName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(bookingData.checkInDate).toLocaleDateString()} - {new Date(bookingData.checkOutDate).toLocaleDateString()} • {bookingData.nights} nights
+                  </p>
+                  <p className="text-sm text-muted-foreground">{bookingData.guests} guest{bookingData.guests > 1 ? "s" : ""}</p>
                 </div>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">GH₵450 × 3 nights</span><span className="font-medium">GH₵1,350</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Service fee</span><span className="font-medium">GH₵50</span></div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">GH₵{bookingData.pricePerNight.toFixed(2)} × {bookingData.nights} nights</span>
+                  <span className="font-medium">GH₵{(bookingData.pricePerNight * bookingData.nights).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Service fee</span>
+                  <span className="font-medium">GH₵{(bookingData.totalPrice * 0.04).toFixed(2)}</span>
+                </div>
                 <div className="mt-2 flex justify-between border-t border-border pt-2 text-base font-bold">
-                  <span>Total</span><span className="text-primary">GH₵1,400</span>
+                  <span>Total</span><span className="text-primary">GH₵{bookingData.totalPrice.toFixed(2)}</span>
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap justify-center gap-2">

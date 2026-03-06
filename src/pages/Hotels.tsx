@@ -1,48 +1,67 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Search, MapPin, Star, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, Star, SlidersHorizontal, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import Layout from "@/components/layout/Layout";
-import kakumPark from "@/assets/kakum-park.jpg";
-import elminaCastle from "@/assets/elmina-castle.jpg";
-import molePark from "@/assets/mole-park.jpg";
-
-const hotels = [
-  { id: 1, name: "Labadi Beach Hotel", location: "Accra", price: 450, rating: 4.8, stars: 5, image: elminaCastle, amenities: ["wifi", "pool", "restaurant", "parking"] },
-  { id: 2, name: "Coconut Grove Regency", location: "Accra", price: 280, rating: 4.5, stars: 4, image: kakumPark, amenities: ["wifi", "restaurant", "gym"] },
-  { id: 3, name: "Ridge Royal Hotel", location: "Cape Coast", price: 180, rating: 4.3, stars: 3, image: molePark, amenities: ["wifi", "parking", "restaurant"] },
-  { id: 4, name: "Zaina Lodge", location: "Tamale", price: 620, rating: 4.9, stars: 5, image: elminaCastle, amenities: ["wifi", "pool", "spa", "restaurant"] },
-  { id: 5, name: "Anomabo Beach Resort", location: "Cape Coast", price: 320, rating: 4.6, stars: 4, image: kakumPark, amenities: ["wifi", "pool", "restaurant"] },
-  { id: 6, name: "Golden Tulip Kumasi", location: "Kumasi", price: 200, rating: 4.2, stars: 4, image: molePark, amenities: ["wifi", "restaurant", "gym", "parking"] },
-];
+import { hotelsService, Hotel } from "@/services/hotels";
+import { HotelCard } from "@/components/cards/HotelCard";
+import { toast } from "sonner";
 
 const Hotels = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [priceRange, setPriceRange] = useState("all");
   const [starRating, setStarRating] = useState("all");
   const [sortBy, setSortBy] = useState("default");
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+
+  useEffect(() => {
+    loadHotels();
+  }, []);
+
+  const loadHotels = async () => {
+    setIsLoading(true);
+    try {
+      const data = await hotelsService.searchHotels({
+        limit: 100,
+      });
+      setHotels(data);
+    } catch (error: any) {
+      toast.error("Failed to load hotels");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = hotels.filter((h) => {
       const matchesSearch = h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         h.location.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesPrice = priceRange === "all" ||
-        (priceRange === "0-200" && h.price <= 200) ||
-        (priceRange === "200-400" && h.price > 200 && h.price <= 400) ||
-        (priceRange === "400+" && h.price > 400);
-      const matchesStars = starRating === "all" || h.stars === Number(starRating);
-      return matchesSearch && matchesPrice && matchesStars;
+      
+      const min = minPrice ? parseFloat(minPrice) : 0;
+      const max = maxPrice ? parseFloat(maxPrice) : Infinity;
+      const matchesPrice = h.price_per_night >= min && h.price_per_night <= max;
+      
+      const matchesRating = starRating === "all" || 
+        (starRating === "5" && h.rating >= 4.5) ||
+        (starRating === "4" && h.rating >= 3.5 && h.rating < 4.5) ||
+        (starRating === "3" && h.rating < 3.5);
+      
+      return matchesSearch && matchesPrice && matchesRating;
     });
 
-    if (sortBy === "price-asc") result.sort((a, b) => a.price - b.price);
-    else if (sortBy === "price-desc") result.sort((a, b) => b.price - a.price);
+    if (sortBy === "price-asc") result.sort((a, b) => a.price_per_night - b.price_per_night);
+    else if (sortBy === "price-desc") result.sort((a, b) => b.price_per_night - a.price_per_night);
     else if (sortBy === "rating") result.sort((a, b) => b.rating - a.rating);
 
     return result;
-  }, [searchQuery, priceRange, starRating, sortBy]);
+  }, [hotels, searchQuery, priceRange, starRating, sortBy, minPrice, maxPrice]);
 
   return (
     <Layout>
@@ -55,9 +74,7 @@ const Hotels = () => {
               <MapPin className="h-4 w-4 text-primary" />
               <Input placeholder="Search by name or location..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="border-0 bg-transparent shadow-none focus-visible:ring-0" />
             </div>
-            <Input type="date" className="flex-1 rounded-xl" placeholder="Check-in" />
-            <Input type="date" className="flex-1 rounded-xl" placeholder="Check-out" />
-            <Button size="lg" className="gap-2 rounded-xl">
+            <Button size="lg" className="gap-2 rounded-xl" onClick={loadHotels}>
               <Search className="h-4 w-4" /> Search
             </Button>
           </div>
@@ -67,15 +84,22 @@ const Hotels = () => {
       <section className="py-10">
         <div className="container">
           <div className="mb-6 flex flex-wrap items-center gap-3">
-            <Select value={priceRange} onValueChange={setPriceRange}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Price Range" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Prices</SelectItem>
-                <SelectItem value="0-200">GH₵ 0 - 200</SelectItem>
-                <SelectItem value="200-400">GH₵ 200 - 400</SelectItem>
-                <SelectItem value="400+">GH₵ 400+</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="Min price"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className="w-24"
+              />
+              <Input
+                type="number"
+                placeholder="Max price"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className="w-24"
+              />
+            </div>
             <Select value={starRating} onValueChange={setStarRating}>
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Star Rating" /></SelectTrigger>
               <SelectContent>
@@ -94,10 +118,17 @@ const Hotels = () => {
                 <SelectItem value="rating">Top Rated</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-sm text-muted-foreground">{filtered.length} results</span>
+            <span className="text-sm text-muted-foreground">
+              {isLoading ? "Loading..." : `${filtered.length} results`}
+            </span>
           </div>
 
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-20">
+              <Loader className="mb-3 h-10 w-10 text-muted-foreground animate-spin" />
+              <p className="text-lg font-semibold">Loading hotels...</p>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-20">
               <Search className="mb-3 h-10 w-10 text-muted-foreground" />
               <p className="text-lg font-semibold">No hotels found</p>
@@ -106,35 +137,7 @@ const Hotels = () => {
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((hotel) => (
-                <Link key={hotel.id} to={`/hotels/${hotel.id}`} className="group overflow-hidden rounded-2xl border border-border bg-card transition-all hover:shadow-primary-md">
-                  <div className="relative h-48 overflow-hidden">
-                    <img src={hotel.image} alt={hotel.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute right-3 top-3 rounded-full bg-background/90 px-2 py-1 text-xs font-semibold backdrop-blur-sm">
-                      <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-primary text-primary" /> {hotel.rating}</span>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-1 flex items-center gap-1">
-                      {Array.from({ length: hotel.stars }).map((_, i) => (
-                        <Star key={i} className="h-3 w-3 fill-primary text-primary" />
-                      ))}
-                    </div>
-                    <h3 className="mb-1 font-display text-lg font-semibold">{hotel.name}</h3>
-                    <p className="mb-3 flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="h-3 w-3" /> {hotel.location}</p>
-                    <div className="mb-3 flex flex-wrap gap-1">
-                      {hotel.amenities.map((a) => (
-                        <Badge key={a} variant="secondary" className="text-xs capitalize">{a}</Badge>
-                      ))}
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <span className="text-2xl font-bold text-primary">GH₵{hotel.price}</span>
-                        <span className="text-sm text-muted-foreground">/night</span>
-                      </div>
-                      <Button size="sm">Book Now</Button>
-                    </div>
-                  </div>
-                </Link>
+                <HotelCard key={hotel.id} hotel={hotel} />
               ))}
             </div>
           )}
